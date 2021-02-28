@@ -1,5 +1,3 @@
-#![cfg(any(unix, target_os = "redox"))]
-
 extern crate dirs;
 
 use std::fmt;
@@ -11,6 +9,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::ffi::OsString;
 
+#[cfg(any(unix, target_os = "redox"))]
 use std::os::unix::fs::PermissionsExt;
 
 use BaseDirectoriesErrorKind::*;
@@ -81,6 +80,7 @@ pub struct BaseDirectories {
     state_home: PathBuf,
     data_dirs: Vec<PathBuf>,
     config_dirs: Vec<PathBuf>,
+    #[cfg(any(unix, target_os = "redox"))]
     runtime_dir: Option<PathBuf>,
 }
 
@@ -280,6 +280,7 @@ impl BaseDirectories {
         let config_dirs = env_var("XDG_CONFIG_DIRS")
                               .and_then(abspaths)
                               .unwrap_or(vec![PathBuf::from("/etc/xdg")]);
+        #[cfg(any(unix, target_os = "redox"))]
         let runtime_dir = env_var("XDG_RUNTIME_DIR")
                               .and_then(abspath); // optional
 
@@ -293,10 +294,12 @@ impl BaseDirectories {
             state_home,
             data_dirs,
             config_dirs,
+            #[cfg(any(unix, target_os = "redox"))]
             runtime_dir,
         })
     }
 
+    #[cfg(any(unix, target_os = "redox"))]
     fn get_runtime_directory(&self) -> Result<&PathBuf, BaseDirectoriesError> {
         if let Some(ref runtime_dir) = self.runtime_dir {
             // If XDG_RUNTIME_DIR is in the environment but not secure,
@@ -320,10 +323,13 @@ impl BaseDirectories {
 
     /// Returns `true` if `XDG_RUNTIME_DIR` is available, `false` otherwise.
     pub fn has_runtime_directory(&self) -> bool {
+        #[cfg(any(unix, target_os = "redox"))]
         match self.get_runtime_directory() {
             Ok(_) => true,
             _ => false
         }
+        #[cfg(not(any(unix, target_os = "redox")))]
+        false
     }
 
     /// Like [`place_config_file()`](#method.place_config_file), but does
@@ -357,6 +363,7 @@ impl BaseDirectories {
     /// Like [`place_runtime_file()`](#method.place_runtime_file), but does
     /// not create any directories.
     /// If `XDG_RUNTIME_DIR` is not available, returns an error.
+    #[cfg(any(unix, target_os = "redox"))]
     pub fn get_runtime_file<P>(&self, path: P) -> io::Result<PathBuf>
             where P: AsRef<Path> {
         let runtime_dir = self.get_runtime_directory()?;
@@ -396,6 +403,7 @@ impl BaseDirectories {
     /// Like [`place_config_file()`](#method.place_config_file), but for
     /// a runtime file in `XDG_RUNTIME_DIR`.
     /// If `XDG_RUNTIME_DIR` is not available, returns an error.
+    #[cfg(any(unix, target_os = "redox"))]
     pub fn place_runtime_file<P>(&self, path: P) -> io::Result<PathBuf>
             where P: AsRef<Path> {
         write_file(self.get_runtime_directory()?, self.user_prefix.join(path))
@@ -458,6 +466,7 @@ impl BaseDirectories {
     /// Given a relative path `path`, returns an absolute path to an existing
     /// runtime file, or `None`. Searches `XDG_RUNTIME_DIR`.
     /// If `XDG_RUNTIME_DIR` is not available, returns `None`.
+    #[cfg(any(unix, target_os = "redox"))]
     pub fn find_runtime_file<P>(&self, path: P) -> Option<PathBuf>
             where P: AsRef<Path> {
         if let Ok(runtime_dir) = self.get_runtime_directory() {
@@ -505,6 +514,7 @@ impl BaseDirectories {
     /// Like [`create_config_directory()`](#method.create_config_directory),
     /// but for a runtime directory in `XDG_RUNTIME_DIR`.
     /// If `XDG_RUNTIME_DIR` is not available, returns an error.
+    #[cfg(any(unix, target_os = "redox"))]
     pub fn create_runtime_directory<P>(&self, path: P) -> io::Result<PathBuf>
             where P: AsRef<Path> {
         create_directory(self.get_runtime_directory()?,
@@ -564,6 +574,7 @@ impl BaseDirectories {
     /// Given a relative path `path`, lists absolute paths to all files
     /// in directories with path `path` in `XDG_RUNTIME_DIR`.
     /// If `XDG_RUNTIME_DIR` is not available, returns an empty `Vec`.
+    #[cfg(any(unix, target_os = "redox"))]
     pub fn list_runtime_files<P>(&self, path: P) -> Vec<PathBuf>
             where P: AsRef<Path> {
         if let Ok(runtime_dir) = self.get_runtime_directory() {
@@ -781,6 +792,7 @@ fn make_env(vars: Vec<(&'static str, String)>) ->
 #[test]
 fn test_files_exists() {
     assert!(path_exists("test_files"));
+    #[cfg(any(unix, target_os = "redox"))]
     assert!(fs::metadata("test_files/runtime-bad")
                  .unwrap().permissions().mode() & 0o077 != 0);
 }
@@ -794,6 +806,7 @@ fn test_bad_environment() {
             ("XDG_CACHE_HOME", "test_files/user/cache".to_string()),
             ("XDG_DATA_DIRS", "test_files/user/data".to_string()),
             ("XDG_CONFIG_DIRS", "test_files/user/config".to_string()),
+            #[cfg(any(unix, target_os = "redox"))]
             ("XDG_RUNTIME_DIR", "test_files/runtime-bad".to_string())
         ])).unwrap();
     assert_eq!(xd.find_data_file("everywhere"), None);
@@ -837,6 +850,7 @@ fn test_good_environment() {
 }
 
 #[test]
+#[cfg(any(unix, target_os = "redox"))]
 fn test_runtime_bad() {
     let cwd = env::current_dir().unwrap().to_string_lossy().into_owned();
     let xd = BaseDirectories::with_env("", "", &*make_env(vec![
@@ -847,6 +861,7 @@ fn test_runtime_bad() {
 }
 
 #[test]
+#[cfg(any(unix, target_os = "redox"))]
 fn test_runtime_good() {
     use std::fs::File;
 
@@ -930,6 +945,7 @@ fn test_lists() {
 }
 
 #[test]
+#[cfg(any(unix, target_os = "redox"))]
 fn test_get_file() {
     let cwd = env::current_dir().unwrap().to_string_lossy().into_owned();
     let xd = BaseDirectories::with_env("", "", &*make_env(vec![
